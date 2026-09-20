@@ -36,9 +36,6 @@ app = FastAPI(
         "name": "TruthLens Border Intelligence",
         "url": "https://github.com/truthlens-ai",
     },
-    license_info={
-        "name": "MIT",
-    },
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -83,27 +80,34 @@ async def security_and_rate_limit_middleware(request: Request, call_next):
     return response
 
 
-# ─── CORS & Security Middleware ──────────────────────────────────
+# ─── CORS Middleware ─────────────────────────────────────────────
 import os
-import time
-from collections import defaultdict
 
-# Dynamic allowed origins for development & cloud deployments (Vercel, Render, etc.)
-cors_origins_env = os.getenv("CORS_ORIGINS", "")
-allowed_origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "https://truthlens-ai-iota.vercel.app",
-]
+app_env = os.getenv("APP_ENV", "development").lower()
+cors_origins_env = os.getenv("CORS_ORIGINS", "").strip()
+
+# Explicit allowed origins list
+allowed_origins = []
+
+# Include localhost origins only in development mode
+if app_env != "production":
+    allowed_origins.extend([
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ])
+
+# In production (and development), add explicit origins provided via CORS_ORIGINS
 if cors_origins_env:
-    allowed_origins.extend([o.strip() for o in cors_origins_env.split(",") if o.strip()])
+    for origin in cors_origins_env.split(","):
+        cleaned = origin.strip().rstrip("/")
+        if cleaned and cleaned not in allowed_origins:
+            allowed_origins.append(cleaned)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins if not os.getenv("ALLOW_ALL_CORS") else ["*"],
-    allow_origin_regex=r"https:\/\/(.*\.(vercel\.app|onrender\.com)|localhost(:\d+)?)",
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
